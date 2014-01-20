@@ -102,8 +102,8 @@ deriv.est<-function(
 			u.var<-unique(pred.grid[,2])
 			ind.v1<-which(pred.grid[,2]==u.var[1])
 			ind.v2<-which(pred.grid[,2]==u.var[2])
-			pred.cor<-(pred[ind.v2,]-pred[ind.v1,])/(u.var[2]-u.var[1])
-			pred.d.cor<-(pred.d[ind.v2,]-pred.d[ind.v1,])/(u.var[2]-u.var[1])
+			pred.cor<-as.matrix((pred[ind.v2,]-pred[ind.v1,])/(u.var[2]-u.var[1]))
+			pred.d.cor<-as.matrix((pred.d[ind.v2,]-pred.d[ind.v1,])/(u.var[2]-u.var[1]))
 			if(deriv.do==4){
 				pred.dif<-avg.low(pred.cor,pred.grid[ind.v1,-2],range.main)
 				pred.d.dif<-avg.low(pred.d.cor,pred.grid[ind.v1,-2],range.main)
