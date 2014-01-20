@@ -568,4 +568,132 @@ deriv.fig<-function(analysis.path,model.number,type,ynames=NULL,figs=c(TRUE,TRUE
 		}
 	}
 
+	#######
+	## 4 ##
+	#######
+
+## SO FAR, THIS IS JUST A COPY OF 2 - NEED TO EDIT
+
+	if(type==4){
+
+		num.levels<-unique(pred.grid[,2])
+
+		## convert each y to a matrix format
+		pred.list<-list()
+		pred.p.list<-list()
+		pred.pboot.list<-list()
+		pred.d.list<-list()
+		pred.d.p.list<-list()
+		pred.d.pboot.list<-list()
+		for(i in 1:dim(pred)[2]){
+			pred.list[[i]]<-sapply(1:length(num.levels), function(j) pred[which(pred.grid[,2]==num.levels[j]),i])
+			pred.p.list[[i]]<-sapply(1:length(num.levels), function(j) pred.p[which(pred.grid[,2]==num.levels[j]),i])
+			pred.pboot.list[[i]]<-sapply(1:length(num.levels), function(j) pred.pboot[which(pred.grid[,2]==num.levels[j]),i])
+			pred.d.list[[i]]<-sapply(1:length(num.levels), function(j) pred.d[which(pred.grid[,2]==num.levels[j]),i])
+			pred.d.p.list[[i]]<-sapply(1:length(num.levels), function(j) pred.d.p[which(pred.grid[,2]==num.levels[j]),i])
+			pred.d.pboot.list[[i]]<-sapply(1:length(num.levels), function(j) pred.d.pboot[which(pred.grid[,2]==num.levels[j]),i])
+		}
+
+		## for each y
+		for(i in 1:dim(pred)[2]){
+
+			## predicted fits
+			if(figs[1]){
+
+				## for setting y limits on graph
+				pred.<-as.numeric(pred[,i])
+				sim.pred.mean.<-as.numeric(sim.pred.mean[,i])
+				sim.pred.sd.<-as.numeric(sim.pred.sd[,i])
+
+				pdf(paste(path,"pred",paste(i,"pdf",sep="."),sep="/"))
+					yL<-min(c(min(pred.),min(sim.pred.mean.-sim.pred.sd.)))
+					yH<-max(c(max(pred.),max(sim.pred.mean.+sim.pred.sd.)))
+					layout(matrix(c(2,1),ncol=2L),widths=c(4,1))
+					range.<-seq(yL,yH,length.out=20)
+					image(matrix(range.,1,length(range.)),col=topo.colors(length(range.)),xaxt="n",yaxt="n")
+					axis(2,seq(0,1,length.out=length(range.)),round(range.,3))
+					title(ylab="maturation index")
+					image(range+main.offset,num.levels,pred.list[[i]],col=topo.colors(length(range.)),xlim=range(range+main.offset),xlab="age(y)",ylim=range(num.levels),ylab=names(pred.grid[2]))
+					title(main=ynames[i])
+				dev.off()
+			}
+
+			## pvals (normal distribution)
+			if(figs[2]){
+				pdf(paste(path,"pred.p",paste(i,"pdf",sep="."),sep="/"))
+					layout(matrix(c(2,1),ncol=2L),widths=c(4,1))
+					range.<-seq(0,0.1,length.out=20)
+					image(matrix(range.,1,length(range.)),col=heat.colors(length(range.)),xaxt="n",yaxt="n")
+					axis(2,seq(0,1,length.out=length(range.)),round(range.,2))
+					title(ylab="p")
+					image(range+main.offset,num.levels,pred.p.list[[i]],col=heat.colors(length(range.)),zlim=c(0,0.1),xlim=range(range+main.offset),xlab="age(y)",ylim=range(num.levels),ylab=names(pred.grid[2]))
+					title(main=ynames[i])
+				dev.off()
+			}
+			
+			## pvals (monte carlo)
+			if(figs[3]){
+				pdf(paste(path,"pred.pboot",paste(i,"pdf",sep="."),sep="/"))
+					layout(matrix(c(2,1),ncol=2L),widths=c(4,1))
+					range.<-seq(0,0.1,length.out=20)
+					image(matrix(range.,1,length(range.)),col=heat.colors(length(range.)),xaxt="n",yaxt="n")
+					axis(2,seq(0,1,length.out=length(range.)),round(range.,2))
+					title(ylab="p")
+					image(range+main.offset,num.levels,pred.pboot.list[[i]],col=heat.colors(length(range.)),zlim=c(0,0.1),xlim=range(range+main.offset),xlab="age(y)",ylim=range(num.levels),ylab=names(pred.grid[2]))
+					title(main=ynames[i])
+				dev.off()
+			}
+			
+			## predicted fit derivatives
+			if(figs[4]){
+				## for setting y limits on graph
+				pred.d.<-as.numeric(pred.d[,i])
+				sim.pred.d.mean.<-as.numeric(sim.pred.d.mean[,i])
+				sim.pred.d.sd.<-as.numeric(sim.pred.d.sd[,i])
+
+				## prediction - derivatives
+				pdf(paste(path,"pred.d",paste(i,"pdf",sep="."),sep="/"))
+					## prepare plot
+					yL<-min(c(min(pred.d.),min(sim.pred.d.mean.-sim.pred.d.sd.)))
+					yH<-max(c(max(pred.d.),max(sim.pred.d.mean.+sim.pred.d.sd.)))
+					layout(matrix(c(2,1),ncol=2L),widths=c(4,1))
+					range.<-seq(yL,yH,length.out=20)
+					image(matrix(range.,1,length(range.)),col=topo.colors(length(range.)),xaxt="n",yaxt="n")
+					axis(2,seq(0,1,length.out=length(range.)),round(range.,3))
+					title(ylab="maturation index")
+					image(range+main.offset,num.levels,pred.d.list[[i]],col=topo.colors(length(range.)),xlim=range(range+main.offset),xlab="age(y)",ylim=range(num.levels),ylab=names(pred.grid[2]))
+					title(main=ynames[i])
+				dev.off()
+			}
+
+			## derivative pvals (normal distribution)
+			if(figs[5]){
+				pdf(paste(path,"pred.d.p",paste(i,"pdf",sep="."),sep="/"))
+					layout(matrix(c(2,1),ncol=2L),widths=c(4,1))
+					range.<-seq(0,0.1,length.out=20)
+					image(matrix(range.,1,length(range.)),col=heat.colors(length(range.)),xaxt="n",yaxt="n")
+					axis(2,seq(0,1,length.out=length(range.)),round(range.,2))
+					title(ylab="p")
+					image(range+main.offset,num.levels,pred.d.p.list[[i]],col=heat.colors(length(range.)),zlim=c(0,0.1),xlim=range(range+main.offset),xlab="age(y)",ylim=range(num.levels),ylab=names(pred.grid[2]))
+					title(main=ynames[i])
+				dev.off()
+			}
+			
+			## derivative pvals (monte carlo)
+			if(figs[6]){
+				pdf(paste(path,"pred.d.pboot",paste(i,"pdf",sep="."),sep="/"))
+					layout(matrix(c(2,1),ncol=2L),widths=c(4,1))
+					range.<-seq(0,0.1,length.out=20)
+					image(matrix(range.,1,length(range.)),col=heat.colors(length(range.)),xaxt="n",yaxt="n")
+					axis(2,seq(0,1,length.out=length(range.)),round(range.,2))
+					title(ylab="p")
+					image(range+main.offset,num.levels,pred.d.pboot.list[[i]],col=heat.colors(length(range.)),zlim=c(0,0.1),xlim=range(range+main.offset),xlab="age(y)",ylim=range(num.levels),ylab=names(pred.grid[2]))
+					title(main=ynames[i])
+				dev.off()
+			}
+		}
+		## all y in 1 graph
+		## need some sort of difference measure here
+	}
+
 }

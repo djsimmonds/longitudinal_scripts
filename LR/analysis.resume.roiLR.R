@@ -1,4 +1,4 @@
-start.m<-81
+start.m<-183
 sink(log.txt)
 
 ## loop through all models
@@ -29,18 +29,21 @@ for(m in start.m:dim(models$X)[1]){
 		ind.comp<-ind.comp+1
 	}
 
-	## estimate coefficients
-	if(models$coef.do[m]>0){
-		cat(date(),"\t\t\t\tcoefficients analysis...\n")
-		coef.est()
-		cat(date(),"\t\t\t\tcoefficients analysis completed\n")
-	}
+	if(m %in% ind.LR){
 
-	# derivatives analysis
-	if(models$deriv.do[m]>0){
-		cat(date(),"\t\t\t\tderivatives analysis...\n")
-		deriv.est()
-		cat(date(),"\t\t\t\tderivatives analysis completed\n")
+		## estimate coefficients
+		if(models$coef.do[m]>0){
+			cat(date(),"\t\t\t\tcoefficients analysis...\n")
+			coef.est()
+			cat(date(),"\t\t\t\tcoefficients analysis completed\n")
+		}
+
+		# derivatives analysis
+		if(models$deriv.do[m]>0){
+			cat(date(),"\t\t\t\tderivatives analysis...\n")
+			deriv.est()
+			cat(date(),"\t\t\t\tderivatives analysis completed\n")
+		}
 	}
 }
 

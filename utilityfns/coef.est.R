@@ -1,19 +1,19 @@
-coef.est<-function(Y=data.,W=Wts.,W.=NULL,m1.=models$model[[m]],m0.=models$model[[1]],path=paste(setup$path,m,sep="/"),mixed=setup$mixed,ynames=setup$ynames,nsim=setup$deriv$nsim)
-{
+coef.est<-function(
+	y=Y,
+	m1.=models$model[[m]],
+	m0.=models$model[[1]],
+	path=paste(setup$path,m,sep="/"),
+	mixed=setup$mixed,
+	ynames=setup$ynames,
+	nsim=setup$coef$nsim
+){
+
 	path<-paste(path,"coef",sep="/")
 	dir.create(path)
-	## gets indices of rows which are excluded in m1
-	na<-m1.$na
-	## if any excluded, adjust data and weight matrices
-	## note: W. (an additional weighting matrix, e.g. for behavioral variables) already has NAs removed by the outlier script
-	if(length(na)>0){
-		Y<-Y[-na,]
-		W<-as.matrix(W[-na,])
-	}
-	if(!is.null(W.)) W<-apply(W,2,"*",W.)
-	Y<-as.matrix(Y)
-	W<-as.matrix(W)
-	## data frame for m1 (NAs removed)
+
+	## gets indices of rows which are excluded in m1; if any excluded, adjust data matrix
+	if(length(m1.$all.exc)>0) Y<-as.matrix(y[-m1.$all.exc,]) else Y<-y
+	## data frame for m1 (NAs already removed)
 	d<-m1.$data
 	## updates models with appropriate data frame
 	m0<-update(m0.$fit,data=d)
@@ -26,16 +26,13 @@ coef.est<-function(Y=data.,W=Wts.,W.=NULL,m1.=models$model[[m]],m0.=models$model
 		xnames<-names(m1@fixef)
 		coef<-sapply(
 			1:dim(Y)[2],
-			function(i) {m1@pWt<-W[,i]; refit(m1,Y[,i])@fixef}
+			function(i) refit(m1,Y[,i])@fixef
 		)
 		coef.list<-sapply(
 			1:dim(Y)[2],
 			function(i){
 				coef.=coef[,i]
-				w<-W[,i]
-				m0@pWt<-w ## weights
 				S=simulate(refit(m0,Y[,i]),nsim)
-				m1@pWt<-w ## weights
 				s.coef<-sapply(1:dim(S)[2], function(s) refit(m1,S[,s])@fixef)
 				s.coef.m<-apply(s.coef,1,mean)
 				s.coef.sd<-apply(s.coef,1,sd)
@@ -49,15 +46,13 @@ coef.est<-function(Y=data.,W=Wts.,W.=NULL,m1.=models$model[[m]],m0.=models$model
 	}else{
 		xnames<-names(m1$coef)
 		X<-model.matrix(m1)
-		coef<-sapply(1:dim(Y)[2], function(i) lm.wfit(X,Y[,i],W[,i])$coef)
+		coef<-sapply(1:dim(Y)[2], function(i) lm.fit(X,Y[,i])$coef)
 		coef.list<-sapply(
 			1:dim(Y)[2],
 			function(i){
 				coef.<-coef[,i]
-				w<-W[,i]
-				m0<-update(m0,weights=w)
 				S=simulate(m0,nsim)
-				s.coef<-sapply(1:dim(S)[2], function(s) lm.wfit(X,S[,s],w)$coef)
+				s.coef<-sapply(1:dim(S)[2], function(s) lm.fit(X,S[,s])$coef)
 				s.coef.m<-apply(s.coef,1,mean)
 				s.coef.sd<-apply(s.coef,1,sd)
 				coef.p<-pnorm(coef.,s.coef.m,s.coef.sd)

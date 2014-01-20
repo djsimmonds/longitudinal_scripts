@@ -1,12 +1,19 @@
 ## functions 
-model.est<-function(f=cbind(c("","null","")),x=demo.,y=data.[,1],w=Wts[,1],mixed=setup$mixed,r=setup$ranef){
+model.est<-function(
+	f=cbind(c("","null","")),
+	x=X,
+	y=Y,
+	mixed=setup$mixed,
+	r=setup$ranef,
+	analytics.first=TRUE ## if true, only runs analytics on first Y variable; otherwise, runs on all
+){
+
 ## format formula strings and estimate models (regular)
 ## details:
 	## f (required) - fixed effects
 		## format (variable, type(null,lin,ns,poly,etc...), extra parameters)
 	## x (required) - data frame containing demographics and other non-response variables
-	## y (required) - response variable vector (default to first column of data matrix)
-	## w - weights vector (default to first column of weights matrix)
+	## y (required) - response variable matrix
 	## mixed - regular regression (lm) or mixed model regression (lmer)? (default=FALSE, for lm)
 	## r - random effects if mixed model regression
 
@@ -72,28 +79,47 @@ model.est<-function(f=cbind(c("","null","")),x=demo.,y=data.[,1],w=Wts[,1],mixed
 		formula<-paste("y~",f.,sep="")
 	}
 
-	## adding response and weights to data frame, also indexing NAs
-	if(is.null(d)) d=data.frame(y) else d<-cbind(d,y)
-	na<-c(na,which(is.na(y)))
-	if(!is.null(w)){
-		d<-cbind(d,w)
-		na<-c(na,which(is.na(w)))
-	}
-	
-	## exclude NAs from data frame
-	if(length(na)>0) d<-d[-unique(na),]
+	## indexing NAs in response variables, combine all NAs into unique vector and exclude from data frame and y variable
+	na<-unique(c(na,which(is.na(rowMeans(y)))))
+	if(length(na)>0){ d<-d[-na,]; y<-as.matrix(y[-na,]) }
+
+	## add response to data frame
+	if(is.null(d)) d=data.frame(y=y[,1]) else d<-cbind(d,y=y[,1])
 
 	## calculate model fit
-	if(mixed==TRUE){
-		m.call<-paste("lmer(",formula,",data=d",sep="")
-		if(!is.null(w)) m.call<-paste(m.call,",weights=w)",sep="") else m.call<-paste(m.call,")",sep="")
-		fit<-eval(parse(text=m.call))
+	if(mixed==TRUE) m.call<-paste("lmer(",formula,",data=d)",sep="") else m.call<-paste("lm(",formula,",data=d)",sep="")
+	fit<-eval(parse(text=m.call))
+
+	## loop through responses and calculate influence parameters, exclude subjects with cook's distance >4/n for any response
+	## NOTE: REST OF SCRIPT IS FLEXIBLE, BUT THIS IS RIGHT NOW ONLY SET UP FOR A SINGLE RANDOM EFFECT, NAMED "id"
+	if(analytics.first==TRUE){
+		m.est<-estex(fit,"id")
+		subj.exc.ind<-which(ME.cook(m.est)>4/length(unique(d$id)))
 	}else{
-		m.call<-paste("lm(",formula,",data=d",sep="")
-		if(!is.null(w)) m.call<-paste(m.call,",weights=w)",sep="") else m.call<-paste(m.call,")",sep="")
-		fit<-eval(parse(text=m.call))
+		subj.exc.ind<-numeric(0)
+		for(i in 1:dim(y)[2]){
+			fit<-refit(fit,y[,i])
+			m.est<-estex(fit,"id")
+			subj.exc.ind<-c(subj.exc.ind,which(ME.cook(m.est)>4/length(unique(d$id))))
+		}
 	}
-	
+	subj.exc<-unique(d$id)[unique(subj.exc.ind)]
+	scan.exc<-which(d$id %in% subj.exc)
+	if(length(scan.exc)>0) d<-d[-scan.exc,]
+	fit<-eval(parse(text=m.call))
+
+	## index of all excluded scans (NA and influence outliers)
+	if(length(na)>0) all.exc<-unique(c(na,(1:dim(x)[1])[-na][scan.exc])) else all.exc<-(1:dim(x)[1])[scan.exc]
+
 	## returns list with fixed effects, formula, na indices, model matrix (X) and model fit
-	list(fixef=f,formula=formula,na=unique(na),data=d,fit=fit)
+	list(
+		fixef=f,
+		formula=formula,
+		na=na,
+		subj.exc=subj.exc,
+		scan.exc=scan.exc,
+		all.exc=all.exc,
+		data=d,
+		fit=fit
+	)
 }

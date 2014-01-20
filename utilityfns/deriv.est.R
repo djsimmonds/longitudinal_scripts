@@ -1,20 +1,23 @@
-deriv.est<-function(Y=data.,W=Wts,W.=wts.,model=models$X[m,],m1.=models$model[[m]],m0.=models$model[[models$con[[m]][1]]],setup.=setup,deriv.do=models$deriv.do[m],figures=TRUE,main.offset=8){
+deriv.est<-function(
+	y=Y,
+	model=models$X[m,],
+	m1.=models$model[[m]],
+	m0.=models$model[[models$con[[m]][1]]],
+	setup.=setup,
+	deriv.do=models$deriv.do[m]
+){
 
 	## path
 	path<-paste(setup.$path,m,"deriv",sep="/")
 	dir.create(path)
-	## gets indices of rows which are excluded in m1
-	na<-m1.$na
-	## if any excluded, adjust data and weight matrices
-	## note: W. (an additional weighting matrix, e.g. for behavioral variables) already has NAs removed by the outlier script
-	if(length(na)>0){
-		Y<-Y[-na,]
-		W<-as.matrix(W[-na,])
-	}
-	if(!is.null(W.)) W<-apply(W,2,"*",W.)
-	Y<-as.matrix(Y)
-	W<-as.matrix(W)
-	## data frame for m1 (NAs removed)
+
+	## log for deriv analysis
+	sink(paste(path,"deriv.log",sep="/"))
+	cat(date(),"DERIVATIVES ANALYSIS\n\n",date(),"setting up...\n\n")
+
+	## gets indices of rows which are excluded in m1; if any excluded, adjust data matrix
+	if(length(m1.$all.exc)>0) Y<-as.matrix(y[-m1.$all.exc,]) else Y<-y
+	## data frame for m1 (NAs already removed)
 	d<-m1.$data
 	## updates models with appropriate data frame
 	m1<-update(m1.$fit,data=d)
@@ -60,6 +63,7 @@ deriv.est<-function(Y=data.,W=Wts,W.=wts.,model=models$X[m,],m1.=models$model[[m
 	}
 
 	## prediction frame
+	if(length(pred)>1) for(i in length(pred):2) if(is.null(pred[[i]])) pred<-pred[-i]
 	pred.grid<-expand.grid(pred)
 	pred[[1]]<-range.d
 	pred.grid.<-expand.grid(pred)
@@ -69,10 +73,15 @@ deriv.est<-function(Y=data.,W=Wts,W.=wts.,model=models$X[m,],m1.=models$model[[m
 	## longitudinal
 	if(setup.$mixed==TRUE){
 		## coefficients
+		cat(date(),"estimating models...\n")
 		coef<-sapply(
 			1:dim(Y)[2],
-			function(i) {m1@pWt<-W[,i]; refit(m1,Y[,i])@fixef}
+			function(i){
+				cat(i,"")
+				refit(m1,Y[,i])@fixef
+			}
 		)
+		cat(date(),"estimation completed...\n\n")
 
 		## predictions
 		pred.<-as.matrix(X.(m1,pred.grid.)%*%coef)
@@ -82,14 +91,13 @@ deriv.est<-function(Y=data.,W=Wts,W.=wts.,model=models$X[m,],m1.=models$model[[m
 		pred.d.dif<-avg.low(pred.d,pred.grid,range.main)
 
 		## simulate coefficients
+		cat(date(),"simulating null coefficients...\n")
 		pred.list<-sapply(
 			1:dim(Y)[2],
 			function(i){
+				cat(i,"")
 				coef.=coef[,i]
-				w=W[,i]
-				m0@pWt<-w ## weights
 				S=simulate(refit(m0,Y[,i]),nsim)
-				m1@pWt<-w ## weights
 				s.coef<-sapply(
 					1:dim(S)[2],
 					function(s) refit(m1,S[,s])@fixef
@@ -125,12 +133,21 @@ deriv.est<-function(Y=data.,W=Wts,W.=wts.,model=models$X[m,],m1.=models$model[[m
 				}
 			}
 		)
+		cat(date(),"simulation completed...\n\n")
+
 		
 	## cross-sectional
 	}else{
 		## coefficients
+		cat(date(),"estimating models...\n")
 		X<-model.matrix(m1)
-		coef<-sapply(1:dim(Y)[2], function(i) lm.wfit(X,Y[,i],W[,i])$coef)
+		coef<-sapply(1:dim(Y)[2],
+			function(i){
+				cat(i,"")
+				lm.fit(X,Y[,i])$coef
+			}
+		)
+		cat(date(),"estimation completed...\n\n")
 
 		## predictions
 		pred.<-as.matrix(X.(m1,pred.grid.)%*%coef)
@@ -140,13 +157,14 @@ deriv.est<-function(Y=data.,W=Wts,W.=wts.,model=models$X[m,],m1.=models$model[[m
 		pred.d.dif<-avg.low(pred.d,pred.grid,range.main)
 
 		## simulated coefficients
+		cat(date(),"simulating null coefficients...\n")
 		pred.list<-sapply(
 			1:dim(Y)[2],
 			function(i){
+				cat(i,"")
 				coef.=coef[,i]
-				w=W[,i]
-				S=simulate(update(m0,weights=w),nsim)
-				s.coef<-sapply(1:dim(S)[2], function(s) lm.wfit(X,S[,s],w)$coef)
+				S=simulate(update(m0),nsim)
+				s.coef<-sapply(1:dim(S)[2], function(s) lm.fit(X,S[,s])$coef)
 				## simulation predictions
 				pred.sim.<-X.(m1,pred.grid.)%*%s.coef
 				pred.sim.d<-diff(pred.sim.)[ind.grid.-1,]/int
@@ -177,6 +195,8 @@ deriv.est<-function(Y=data.,W=Wts,W.=wts.,model=models$X[m,],m1.=models$model[[m
 				}
 			}
 		)
+		cat(date(),"simulation completed...\n\n")
+
 	}
 
 	if(deriv.do==1) pred.vars<-c("pred.sim.m","pred.sim.sd","pred.p","pred.pboot","pred.sim.d.m","pred.sim.d.sd","pred.d.p","pred.d.pboot") else pred.vars<-c("pred.sim.m","pred.sim.sd","pred.p","pred.pboot","pred.sim.d.m","pred.sim.d.sd","pred.d.p","pred.d.pboot","pred.sim.dif.m","pred.sim.dif.sd","pred.dif.p","pred.dif.pboot","pred.sim.d.dif.m","pred.sim.d.dif.sd","pred.d.dif.p","pred.d.dif.pboot")
@@ -475,7 +495,11 @@ deriv.est<-function(Y=data.,W=Wts,W.=wts.,model=models$X[m,],m1.=models$model[[m
 		sink()
 		write.table(dif.pboot.d.sign,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
 
-	}	
+	}
+	
+	cat(date(),"derivatives analysis completed...\n\n")
+	sink()
+	
 	"deriv.est() completed"
 }
 

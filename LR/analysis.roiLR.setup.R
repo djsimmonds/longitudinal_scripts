@@ -1,6 +1,6 @@
 ## setup
 setup<-list(
-	path="/home/danisimmonds/Dani/dti_0511/tbss/analysis/062011",
+	path="/home/danisimmonds/Dani/dti_0511/tbss/analysis/roiLR",
 	path.scripts="/home/danisimmonds/Dropbox/scripts0611",
 	ynames=c("all","proj","assoc","assoc.l","cal","cer.c","cer.p","par","occ","sm","fron","temp","mt","bg","thal","ML","PCT","CST","CP","IC.A","IC.P","IC.R","CR.A","CR.S","CR.P","PTR","SFOF","SS","EC","UF","SLF","FOR.CB","FOR.C","CIN.CG","CIN.H","CAL.G","CAL.B","CAL.S","CAL.T","CER.I","CER.M","CER.S"),
 	mixed=TRUE, ## longitudinal?
@@ -40,6 +40,9 @@ setup<-list(
 				c("sex","lin","")
 			),
 			cbind(
+				c("LR","lin","")
+			),
+			cbind(
 				c("tsr","lin","")
 			)
 		## more nested interactions if necessary go here
@@ -50,7 +53,7 @@ setup<-list(
 	## coefficients analysis
 	coef=list(
 		nsim=1000,
-		vars=list(main=1,numeric=1:18,categorical=list(1,1)) ## corresponds to  models structure above, add more levels as necessary
+		vars=list(main=1,numeric=1:18,categorical=list(1,1,1)) ## corresponds to  models structure above, add more levels as necessary
 	),
 	## derivatives analysis (only with main variables and their interactions)
 	deriv=list(
@@ -58,9 +61,10 @@ setup<-list(
 		main.range.int=0.1, ## interval width for predicting main
 		main.small.int=1e-4, ## tiny interval for derivative calculations
 		num.range.int=20, ## how many total intervals to divide numeric variables into for predictions
-		vars=list(main=2,numeric=1:18,categorical=list(1,1)) ## corresponds to models structure above, add more levels as necessary
+		vars=list(main=2,numeric=1:18,categorical=list(1,1,1)) ## corresponds to models structure above, add more levels as necessary
 	),
 	custom.code=c(
+		"for(i in 1:dim(setup$fixef$numeric)[2]){ ind<-which(names(X)==setup$fixef$numeric[1,i]); X[,ind]<-X[,ind]-mean(X[,ind],na.rm=TRUE) }",
 		"knots<-c(13,15.5,18)",
 		"knots<-knots-mean(X$age)",
 		"X$age<-X$age-mean(X$age)" ## converting to avoid singularity for correlation of random intercepts/slopes

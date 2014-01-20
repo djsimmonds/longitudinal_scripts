@@ -20,6 +20,7 @@ model.setup<-function(setup){
 		X=array(NA,c(1,length(F))),
 		X.var=array("",c(1,length(F))),
 		deriv.do=NA,
+		coef.do=NA,
 		con=list(numeric(0))
 	)
 	m<-2 ## model index (rows of models)
@@ -50,6 +51,7 @@ model.setup<-function(setup){
 					models$X.var[m,grid[i,k]]<-pred.str(F[[grid[i,k]]][,grid2[j,k]])
 				}
 				models$deriv.do[m]<-deriv.check(models$X[m,],setup)
+				models$coef.do[m]<-coef.check(models$X[m,],setup)
 				## set up contrasts (which rows to compare model to)
 				if(L==1){
 					models$con[[m]]<-1

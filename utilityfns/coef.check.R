@@ -1,12 +1,12 @@
-## check against setup file to see if derivative analysis should be performed
-deriv.check<-function(vars,setup){
+## check against setup file to see if coefficients analysis should be performed
+coef.check<-function(vars,setup){
 ## details:
 	## vars (required) - for each level of fixed effects, indicates which variables are included in model
 
 	D<-list()
-	if(setup$main==TRUE) D[[1]]<-setup$deriv$vars$main else return(0) ## need main variable for derivatives analysis
-	if(setup$numeric==TRUE) D[[length(D)+1]]<-setup$deriv$vars$numeric
-	if(length(setup$deriv$vars$categorical)>0) for(i in 1:length(setup$deriv$vars$categorical)) D[[length(D)+1]]<-setup$deriv$vars$categorical[[i]]
+	if(setup$main==TRUE) D[[1]]<-setup$coef$vars$main else return(0) ## need main variable for derivatives analysis
+	if(setup$numeric==TRUE) D[[length(D)+1]]<-setup$coef$vars$numeric
+	if(length(setup$coef$vars$categorical)>0) for(i in 1:length(setup$coef$vars$categorical)) D[[length(D)+1]]<-setup$coef$vars$categorical[[i]]
 	if(length(D)==0) return(0)
 
 	## only perform analysis if main is in model

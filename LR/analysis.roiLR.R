@@ -42,6 +42,9 @@ n<-length(unique(X$id)) ## number of subjects for cook's distance calculations
 ## executes custom code from analysis setup
 if(length(setup$custom.code)>0) for(i in 1:length(setup$custom.code)) eval(parse(text=setup$custom.code[i]))
 
+## index of LR analyses; skips coefficients/derivative analyses except for LR analyses
+ind.LR<-which(!is.na(models$X[,4]))
+
 ## loop through all models
 for(m in 2:dim(models$X)[1]){
 
@@ -70,18 +73,22 @@ for(m in 2:dim(models$X)[1]){
 		ind.comp<-ind.comp+1
 	}
 
-	## estimate coefficients
-	if(models$coef.do[m]>0){
-		cat(date(),"\t\t\t\tcoefficients analysis...\n")
-		coef.est()
-		cat(date(),"\t\t\t\tcoefficients analysis completed\n")
-	}
+	## skips coefficients/derivative analyses except for LR analyses
+	if(m %in% ind.LR){
+	
+		## estimate coefficients
+		if(models$coef.do[m]>0){
+			cat(date(),"\t\t\t\tcoefficients analysis...\n")
+			coef.est()
+			cat(date(),"\t\t\t\tcoefficients analysis completed\n")
+		}
 
-	# derivatives analysis
-	if(models$deriv.do[m]>0){
-		cat(date(),"\t\t\t\tderivatives analysis...\n")
-		deriv.est()
-		cat(date(),"\t\t\t\tderivatives analysis completed\n")
+		# derivatives analysis
+		if(models$deriv.do[m]>0){
+			cat(date(),"\t\t\t\tderivatives analysis...\n")
+			deriv.est()
+			cat(date(),"\t\t\t\tderivatives analysis completed\n")
+		}
 	}
 }
 
