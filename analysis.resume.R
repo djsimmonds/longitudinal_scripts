@@ -1,54 +1,12 @@
-## required libraries
-library(lme4) ## for mixed models
-library(influence.ME) ## for regression diagnostics
-library(splines) ## for splines
-library(Rniftilib) ## for working with nifti images
-
-## load data, demographics and weights
-load(paste(setup$path,"data",sep="/"))
-load(paste(setup$path,"demo",sep="/"))
-load(paste(setup$path,"out_weights",sep="/"))
-
-main.offset<-8
-demo.$age<-demo.$age-main.offset ## converting to avoid singularity for correlation of random intercepts/slopes
-
-## models
-models<-model.setup(setup)
-sink(paste(setup$path,"models.txt",sep="/"))
-cat(date(),"\tMODEL SETUP\n\n")
-print(models)
-sink()
+resume.m<-12
 
 ## logfile
 log.txt=paste(setup$path,"log.txt",sep="/")
 sink(log.txt)
 cat(date(),"\tLONGITUDINAL ANALYSIS\n\n")
 
-## load outlier weights
-load(paste(setup$path,"out_weights",sep="/"))
-Wts=as.matrix(weights$w)
-if(setup$numeric==TRUE){
-	Wts.<-list()
-	for(i in 1:length(setup$numeric.weights)){
-		load(setup$numeric.weights[i])
-		Wts.[[i]]<-weights$w
-	}
-}
-
-## set up structures for estimation
-models$model<-list()
-models$model[[1]]<-model.est() ## null model
-
-## model comparisons
-n.comp<-sum(sapply(1:length(models$con), function(i) length(models$con[[i]])))
-labels<-character(n.comp)
-llr<-matrix(NA,n.comp,dim(data.)[2])
-llr.df<-numeric(n.comp)
-llr.p<-matrix(NA,n.comp,dim(data.)[2])
-ind.comp<-1
-
 ## loop through all models
-for(m in 2:dim(models$X)[1]){
+for(m in resume.m:dim(models$X)[1]){
 
 	## print progress through m
 	cat(date(),"\t\tm =",m,"/",dim(models$X)[1],", vars =",models$X.var[m,],"\n")
@@ -61,12 +19,8 @@ for(m in 2:dim(models$X)[1]){
 	models$model[[m]]<-model.est(fixef.set(models$X[m,]))
 
 	## extra weights
-	#if(length(setup$fixef>1)){
-	#	if(setup$numeric==TRUE & !is.na(models$X[m,2])) wts.<-Wts.[[models$X[m,2]]] else wts.<-NULL
-	#}else{
-		wts.=NULL
-	#}
-	
+	if(setup$numeric==TRUE & !is.na(models$X[m,2])) wts.<-Wts.[[models$X[m,2]]] else wts.<-NULL
+
 	## loop through contrasts
 	for(c in 1:length(models$con[[m]])){
 
@@ -85,12 +39,13 @@ for(m in 2:dim(models$X)[1]){
 	## estimate coefficients
 	coef.est(data.,Wts,wts.,m1.=models$model[[m]],m0.=models$model[[1]],path=paste(setup$path,m,sep="/"),mixed=setup$mixed,ynames=setup$ynames)
 
-	# derivatives analysis
+	## derivatives analysis
 	if(models$deriv.do[m]>0){
 		cat(date(),"\t\t\t\tderivatives analysis...\n")
 		deriv.est()
 		cat(date(),"\t\t\t\tderivatives analysis completed\n")
 	}
+
 }
 
 ## llr
@@ -112,9 +67,9 @@ sink()
 write.table(llr.p,col.names=FALSE,row.names=labels,file=filename,append=TRUE)
 
 ## significance stars
-filename=paste(setup$path,"llr.p.star",sep="/")
+filename=paste(path,"llr.p.star",sep="/")
 sink(filename)
-cat("",setup$ynames,"\n")
+cat("",ynames,"\n")
 sink()
 write.table(ifelse(llr.p<.001,"***",ifelse(llr.p<.01,"**",ifelse(llr.p<.05,"*",""))),
 	col.names=FALSE,row.names=labels,file=filename,append=TRUE)

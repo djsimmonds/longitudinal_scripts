@@ -1,191 +1,514 @@
-deriv.est<-function(m1=models$model[[m]],m0=models$model[[models$con[[m]][c]]],path=path..,deriv=setup$deriv,mixed=setup$mixed,data=data.){
-## derivatives analysis
-## details:
-	## need to fill in
+deriv.est<-function(Y=data.,W=Wts,W.=wts.,model=models$X[m,],m1.=models$model[[m]],m0.=models$model[[models$con[[m]][1]]],setup.=setup,deriv.do=models$deriv.do[m],figures=TRUE,main.offset=8){
 
-	## simulate from lower level model
-	cat(date(),"\t\t\t\t\tsimulating from null, n =",deriv$nsim,"\n")
-	sim<-simulate(m0$fit,deriv$nsim)
+	## path
+	path<-paste(setup.$path,m,"deriv",sep="/")
+	dir.create(path)
+	## gets indices of rows which are excluded in m1
+	na<-m1.$na
+	## if any excluded, adjust data and weight matrices
+	## note: W. (an additional weighting matrix, e.g. for behavioral variables) already has NAs removed by the outlier script
+	if(length(na)>0){
+		Y<-Y[-na,]
+		W<-as.matrix(W[-na,])
+	}
+	if(!is.null(W.)) W<-apply(W,2,"*",W.)
+	Y<-as.matrix(Y)
+	W<-as.matrix(W)
+	## data frame for m1 (NAs removed)
+	d<-m1.$data
+	## updates models with appropriate data frame
+	m1<-update(m1.$fit,data=d)
+	m0<-update(m0.$fit,data=d)
 
-	## create new data structure for predictions of bootstrapped models
-	pred<-list(names=m1$fixef[1,1],values=list(deriv$range-8))
-	if(dim(m1$fixef)[2]>1){
-		for(i in 2:dim(m1$fixef)[2]){
-			col<-which(names(data)==m1$fixef[1,i])
-			pred$names[i]<-m1$fixef[1,i]
-			pred$values[[i]]<-unique(factor(data[,col]))
+	## number of simulations
+	nsim<-setup.$deriv$nsim
+	## small interval for calculation of derivatives
+	int<-setup.$deriv$main.small.int
+	## interval of predicted values of main variable
+	int.r<-setup.$deriv$main.range.int
+	## range for prediction of main variable
+	range.main<-seq(ceiling(min(d[,1])/int.r)*int.r,floor(max(d[,1])/int.r)*int.r,int.r)
+	## range for derivative prediction
+	range.d<-rep(range.main,each=2)
+	ind<-which((1:length(range.d))%%2==0)
+	range.d[ind]<-range.d[ind]+int	
+	## range for predictions
+	pred=list(range.main)
+	names(pred)[1]<-setup.$fixef$main[1,model[1]]
+	
+	## range for numeric variable
+	if(deriv.do==2 | deriv.do==4){
+		int.n<-setup.$deriv$num.range.int
+		range.num<-range(d[,2])
+		range.num<-seq(range.num[1],range.num[2],length.out=int.n)
+		pred[[2]]=range.num
+		names(pred)[2]<-setup.$fixef$numeric[1,model[2]]
+	}
+
+	i.off1<-(setup.$numeric & is.na(model[2]))
+	i.off2<-length(pred)
+
+	## other variables
+	if(length(setup.$fixef$categorical)>0){
+		for(i in (1+i.off2):length(model)){
+			if(is.na(model[i+i.off1])) next
+			col<-which(names(d)==setup.$fixef$categorical[[i-i.off2]][1,model[i+i.off1]])
+			if(class(d[,col])=="numeric") d[,col]<-cont.to.fact(d[,col])
+			pred[[i]]<-unique(d[,col])
+			names(pred)[i]<-names(d)[col]
 		}
 	}
-	names(pred$values)<-pred$names
-	pred.grid<-expand.grid(pred$values)
 
-	## expanding grid for short interval calculations
-	pred.grid.ind<-rep(1:dim(pred.grid)[1],each=2)
-	pred.grid.int<-rbind(pred.grid,pred.grid)
-	for(i in 1:length(pred.grid.ind)) pred.grid.int[i,]<-pred.grid[pred.grid.ind[i],]
-	pred.grid.int[which(1:length(pred.grid.ind)%%2==0),1]<-pred.grid.int[which(1:length(pred.grid.ind)%%2==0),1]+deriv$int
-	for(i in 1:length(pred$names)) assign(pred$names[i],pred.grid.int[,i],envir=.GlobalEnv) ## necessary for predictSE.mer, has to do with the use of functions like ns() within formulas within functions, without having the variable in the function outside the ns() structure --> i don't fully understand, but somehow by declaring the variables in the main environment, it gets around the problem
+	## prediction frame
+	pred.grid<-expand.grid(pred)
+	pred[[1]]<-range.d
+	pred.grid.<-expand.grid(pred)
+	ind.grid<-which((1:dim(pred.grid)[1])%%2==0)
+	ind.grid.<-which((1:dim(pred.grid.)[1])%%2==0)
 
-	## predicting values for true and simulated fits
-	cat(date(),"\t\t\t\t\tfitting simulated data:")
-	if(mixed==TRUE){
-		pred.<-predictSE.mer(m1$fit,pred.grid.int,se.fit=FALSE)
-		pred.sim<-matrix(NA,length(pred.),deriv$nsim)
-		for(i in 1:deriv$nsim){
-			cat(i,"")
-			pred.sim[,i]<-predictSE.mer(refit(m1$fit,sim[,i]),pred.grid.int,se.fit=FALSE)
-		}
+	## longitudinal
+	if(setup.$mixed==TRUE){
+		## coefficients
+		coef<-sapply(
+			1:dim(Y)[2],
+			function(i) {m1@pWt<-W[,i]; refit(m1,Y[,i])@fixef}
+		)
+
+		## predictions
+		pred.<-as.matrix(X.(m1,pred.grid.)%*%coef)
+		pred<-as.matrix(pred.[ind.grid.-1,])
+		pred.dif<-avg.low(pred,pred.grid,range.main)
+		pred.d<-as.matrix(diff(pred.)[ind.grid.-1,]/int)
+		pred.d.dif<-avg.low(pred.d,pred.grid,range.main)
+
+		## simulate coefficients
+		pred.list<-sapply(
+			1:dim(Y)[2],
+			function(i){
+				coef.=coef[,i]
+				w=W[,i]
+				m0@pWt<-w ## weights
+				S=simulate(refit(m0,Y[,i]),nsim)
+				m1@pWt<-w ## weights
+				s.coef<-sapply(
+					1:dim(S)[2],
+					function(s) refit(m1,S[,s])@fixef
+				)
+
+				## simulation predictions
+				pred.sim.<-X.(m1,pred.grid.)%*%s.coef
+				pred.sim.d<-diff(pred.sim.)[ind.grid.-1,]/int
+				pred.sim<-pred.sim.[ind.grid.-1,]
+				pred.sim.m<-apply(pred.sim,1,mean)
+				pred.sim.sd<-apply(pred.sim,1,sd)
+				pred.p<-1-pnorm(pred[,i],pred.sim.m,pred.sim.sd)
+				pred.pboot<-sapply(1:dim(pred.sim)[1], function(c) sum(pred.sim[c,]>pred[c,i])/nsim)
+				pred.sim.d.m<-apply(pred.sim.d,1,mean)
+				pred.sim.d.sd<-apply(pred.sim.d,1,sd)
+				pred.d.p<-1-pnorm(pred.d[,i],pred.sim.d.m,pred.sim.d.sd)
+				pred.d.pboot<-sapply(1:dim(pred.sim.d)[1], function(c) sum(pred.sim.d[c,]>pred.d[c,i])/nsim)
+				if(deriv.do==1){
+					list(pred.sim.m,pred.sim.sd,pred.p,pred.pboot,pred.sim.d.m,pred.sim.d.sd,pred.d.p,pred.d.pboot)
+				}else{
+					## this whole portion is for calculating the difference from the lower level model, based on x-mean(x) of the last column in the data matrix
+					pred.sim.dif<-avg.low(pred.sim,pred.grid,range.main)
+					pred.sim.dif.m<-apply(pred.sim.dif,1,mean)
+					pred.sim.dif.sd<-apply(pred.sim.dif,1,sd)
+					pred.dif.p<-1-pnorm(pred.dif[,i],pred.sim.dif.m,pred.sim.dif.sd)
+					pred.dif.pboot<-sapply(1:dim(pred.sim.dif)[1], function(c) sum(pred.sim.dif[c,]>pred.dif[c,i])/nsim)
+					pred.sim.d.dif<-avg.low(pred.sim.d,pred.grid,range.main)
+					pred.sim.d.dif.m<-apply(pred.sim.d.dif,1,mean)
+					pred.sim.d.dif.sd<-apply(pred.sim.d.dif,1,sd)
+					pred.d.dif.p<-1-pnorm(pred.d.dif[,i],pred.sim.d.dif.m,pred.sim.d.dif.sd)
+					pred.d.dif.pboot<-sapply(1:dim(pred.sim.d.dif)[1], function(c) sum(pred.sim.d.dif[c,]>pred.d.dif[c,i])/nsim)
+					list(pred.sim.m,pred.sim.sd,pred.p,pred.pboot,pred.sim.d.m,pred.sim.d.sd,pred.d.p,pred.d.pboot,pred.sim.dif.m,pred.sim.dif.sd,pred.dif.p,pred.dif.pboot,pred.sim.d.dif.m,pred.sim.d.dif.sd,pred.d.dif.p,pred.d.dif.pboot)
+				}
+			}
+		)
+		
+	## cross-sectional
 	}else{
-		pred.<-predict(m1$fit,pred.grid.int)
-		pred.sim<-matrix(NA,length(pred.),deriv$nsim)
-		for(i in 1:deriv$nsim){
-			cat(i,"")
-			data[,1]<-sim[,1]
-			m.sim<-update(m1$fit,.~.)
-			pred.sim[,i]<-predict(m.sim,pred.grid.int)
-		}
-	}
-	cat("\n",date(),"\t\t\t\t\tfitting complete\n")
+		## coefficients
+		X<-model.matrix(m1)
+		coef<-sapply(1:dim(Y)[2], function(i) lm.wfit(X,Y[,i],W[,i])$coef)
 
-	## first derivative
-	pred.d1<-(pred.[which(1:length(pred.grid.ind)%%2==0)]-pred.[which(1:length(pred.grid.ind)%%2==1)])/deriv$int
-	pred.d1.sim<-(pred.sim[which(1:length(pred.grid.ind)%%2==0),]-pred.sim[which(1:length(pred.grid.ind)%%2==1),])/deriv$int
-	## reorganizing initial predictions to remove small interval
-	pred.<-pred.[which(1:length(pred.grid.ind)%%2==1)]
-	pred.sim<-pred.sim[which(1:length(pred.grid.ind)%%2==1),]
+		## predictions
+		pred.<-as.matrix(X.(m1,pred.grid.)%*%coef)
+		pred<-as.matrix(pred.[ind.grid.-1,])
+		pred.dif<-avg.low(pred,pred.grid,range.main)
+		pred.d<-as.matrix(diff(pred.)[ind.grid.-1,]/int)
+		pred.d.dif<-avg.low(pred.d,pred.grid,range.main)
 
-	## mean and sd calculations
-	## if L>1, average across last dimension for plotting and distance calculations
-	if(dim(m1$fixef)[2]==1){
-		last<-numeric(0)
-		mid<-numeric(0)
-		## mean of simulations
-		pred.sim.mean<-rowSums(pred.sim)/dim(pred.sim)[2]
-		pred.d1.sim.mean<-rowSums(pred.d1.sim)/dim(pred.d1.sim)[2]
-		## sd of simulations
-		pred.sim.sd<-numeric(length(pred.sim.mean))
-		pred.d1.sim.sd<-numeric(length(pred.d1.sim.mean))
-		for(i in 1:dim(pred.grid)[1]){
-			pred.sim.sd[i]<-sd(pred.sim[i,])
-			pred.d1.sim.sd[i]<-sd(pred.d1.sim[i,])
-		}
-	}else{
-		last<-pred$values[[length(pred$values)]]
-		if(dim(m1$fixef)[2]==2){
-			mid<-numeric(0)
-		}else{
-			mid<-pred$values
-			mid[[1]]<-NULL
-			mid[[length(mid)]]<-NULL
-			mid<-expand.grid(mid)
-			mid<-do.call("paste",c(mid,sep="_"))
-		} 
-		pred.grid.low<-pred.grid[1:(dim(pred.grid)[1]/length(last)),1:(dim(pred.grid)[2]-1)]
-		dim.low<-c(min(length(pred.grid.low),dim(pred.grid.low)[1]),max(1,dim(pred.grid.low)[2]))
-		pred.sim.low<-matrix(0,dim.low[1],deriv$nsim)
-		pred.d1.sim.low<-matrix(0,dim.low[1],deriv$nsim)
-		for(i in 1:length(last)){
-			pred.sim.low<-(pred.sim.low+pred.sim[1:dim.low[1]+(i-1)*dim.low[1],])/length(last)
-			pred.d1.sim.low<-(pred.d1.sim.low+pred.d1.sim[1:dim.low[1]+(i-1)*dim.low[1],])/length(last)
-		}
-		## mean, averaged across each level of last dimension
-		pred.sim.mean<-rowSums(pred.sim.low)/dim.low[2]
-		pred.d1.sim.mean<-rowSums(pred.d1.sim.low)/dim.low[2]
-		## standard deviation, averaged across each level of last dimension
-		pred.sim.sd<-numeric(dim.low[1])
-		pred.d1.sim.sd<-numeric(dim.low[1])
-		for(i in 1:dim.low[1]){
-			pred.sim.sd[i]<-sd(pred.sim.low[i,])
-			pred.d1.sim.sd[i]<-sd(pred.d1.sim.low[i,])
-		}
+		## simulated coefficients
+		pred.list<-sapply(
+			1:dim(Y)[2],
+			function(i){
+				coef.=coef[,i]
+				w=W[,i]
+				S=simulate(update(m0,weights=w),nsim)
+				s.coef<-sapply(1:dim(S)[2], function(s) lm.wfit(X,S[,s],w)$coef)
+				## simulation predictions
+				pred.sim.<-X.(m1,pred.grid.)%*%s.coef
+				pred.sim.d<-diff(pred.sim.)[ind.grid.-1,]/int
+				pred.sim<-pred.sim.[ind.grid.-1,]
+				pred.sim.m<-apply(pred.sim,1,mean)
+				pred.sim.sd<-apply(pred.sim,1,sd)
+				pred.p<-1-pnorm(pred[,i],pred.sim.m,pred.sim.sd)
+				pred.pboot<-sapply(1:dim(pred.sim)[1], function(c) sum(pred.sim[c,]>pred[c,i])/nsim)
+				pred.sim.d.m<-apply(pred.sim.d,1,mean)
+				pred.sim.d.sd<-apply(pred.sim.d,1,sd)
+				pred.d.p<-1-pnorm(pred.d[,i],pred.sim.d.m,pred.sim.d.sd)
+				pred.d.pboot<-sapply(1:dim(pred.sim.d)[1], function(c) sum(pred.sim.d[c,]>pred.d[c,i])/nsim)
+				if(deriv.do==1){
+					list(pred.sim.m,pred.sim.sd,pred.p,pred.pboot,pred.sim.d.m,pred.sim.d.sd,pred.d.p,pred.d.pboot)
+				}else{
+					## this whole portion is for calculating the difference from the lower level model, based on x-mean(x) of the last column in the data matrix
+					pred.sim.dif<-avg.low(pred.sim,pred.grid,range.main)
+					pred.sim.dif.m<-apply(pred.sim.dif,1,mean)
+					pred.sim.dif.sd<-apply(pred.sim.dif,1,sd)
+					pred.dif.p<-1-pnorm(pred.dif[,i],pred.sim.dif.m,pred.sim.dif.sd)
+					pred.dif.pboot<-sapply(1:dim(pred.sim.dif)[1], function(c) sum(pred.sim.dif[c,]>pred.dif[c,i])/nsim)
+					pred.sim.d.dif<-avg.low(pred.sim.d,pred.grid,range.main)
+					pred.sim.d.dif.m<-apply(pred.sim.d.dif,1,mean)
+					pred.sim.d.dif.sd<-apply(pred.sim.d.dif,1,sd)
+					pred.d.dif.p<-1-pnorm(pred.d.dif[,i],pred.sim.d.dif.m,pred.sim.d.dif.sd)
+					pred.d.dif.pboot<-sapply(1:dim(pred.sim.d.dif)[1], function(c) sum(pred.sim.d.dif[c,]>pred.d.dif[c,i])/nsim)
+					list(pred.sim.m,pred.sim.sd,pred.p,pred.pboot,pred.sim.d.m,pred.sim.d.sd,pred.d.p,pred.d.pboot,pred.sim.dif.m,pred.sim.dif.sd,pred.dif.p,pred.dif.pboot,pred.sim.d.dif.m,pred.sim.d.dif.sd,pred.d.dif.p,pred.d.dif.pboot)
+				}
+			}
+		)
 	}
 
-	## difference measures
-	pred.dif<-pred.-pred.sim.mean
-	mean.dif<-numeric(length(deriv$range))
-	pred.sim.dif<-pred.sim-pred.sim.mean
-	mean.sim.dif<-matrix(0,length(deriv$range),deriv$nsim)
-	pred.d1.dif<-pred.d1-pred.d1.sim.mean
-	mean.d1.dif<-numeric(length(deriv$range))
-	pred.d1.sim.dif<-pred.d1.sim-pred.d1.sim.mean
-	mean.d1.sim.dif<-matrix(0,length(deriv$range),deriv$nsim)
-	for(i in 1:length(deriv$range)){
-		mean.dif[i]<-sqrt(sum(pred.dif[which((1:length(pred.dif))%%length(deriv$range)==i)]^2))
-		mean.d1.dif[i]<-sqrt(sum(pred.d1.dif[which((1:length(pred.d1.dif))%%length(deriv$range)==i)]^2))
-		for(j in 1:length(deriv$nsim)){
-			mean.sim.dif[i,j]<-sqrt(sum(pred.sim.dif[which((1:length(pred.dif))%%length(deriv$range)==i),j]^2))
-			mean.d1.sim.dif[i,j]<-sqrt(sum(pred.d1.sim.dif[which((1:length(pred.d1.dif))%%length(deriv$range)==i),j]^2))
-		}
-	}
+	if(deriv.do==1) pred.vars<-c("pred.sim.m","pred.sim.sd","pred.p","pred.pboot","pred.sim.d.m","pred.sim.d.sd","pred.d.p","pred.d.pboot") else pred.vars<-c("pred.sim.m","pred.sim.sd","pred.p","pred.pboot","pred.sim.d.m","pred.sim.d.sd","pred.d.p","pred.d.pboot","pred.sim.dif.m","pred.sim.dif.sd","pred.dif.p","pred.dif.pboot","pred.sim.d.dif.m","pred.sim.d.dif.sd","pred.d.dif.p","pred.d.dif.pboot")
+	for(i in 1:length(pred.vars)) assign(pred.vars[i],matrix(unlist(pred.list[i,]),length(pred.list[[i,1]]),dim(pred.list)[2]))
 
-	## p-values
-	p<-numeric(length(pred.dif))
-	p.abs<-numeric(length(pred.dif))
-	p.d1<-numeric(length(pred.d1.dif))
-	p.d1.abs<-numeric(length(pred.d1.dif))
-	for(i in 1:length(pred.dif)){
-		p[i]<-length(which(pred.sim.dif[i,]>pred.dif[i]))/deriv$nsim
-		p.abs[i]<-2*abs(p[i]-0.5)
-		p.d1[i]<-length(which(pred.d1.sim.dif[i,]>pred.d1.dif[i]))/deriv$nsim
-		p.d1.abs[i]<-2*abs(p.d1[i]-0.5)
+	## p-vals and direction of difference
+	p<-1-abs(pred.p-0.5)*2
+	p.sign<-sign(pred.p-0.5)	
+	p.d<-1-abs(pred.d.p-0.5)*2
+	p.d.sign<-sign(pred.d.p-0.5)	
+	pboot<-1-abs(pred.pboot-0.5)*2
+	pboot.sign<-sign(pred.pboot-0.5)	
+	pboot.d<-1-abs(pred.d.pboot-0.5)*2
+	pboot.d.sign<-sign(pred.d.pboot-0.5)
+	if(deriv.do>1){
+		dif.p<-1-abs(pred.dif.p-0.5)*2
+		dif.p.sign<-sign(pred.dif.p-0.5)	
+		dif.p.d<-1-abs(pred.d.dif.p-0.5)*2
+		dif.p.d.sign<-sign(pred.d.dif.p-0.5)	
+		dif.pboot<-1-abs(pred.dif.pboot-0.5)*2
+		dif.pboot.sign<-sign(pred.dif.pboot-0.5)	
+		dif.pboot.d<-1-abs(pred.d.dif.pboot-0.5)*2
+		dif.pboot.d.sign<-sign(pred.d.dif.pboot-0.5)
 	}
-	p.dif<-numeric(length(deriv$range))
-	p.dif.abs<-numeric(length(deriv$range))
-	p.d1.dif<-numeric(length(deriv$range))
-	p.d1.dif.abs<-numeric(length(deriv$range))
-	for(i in 1:length(deriv$range)){
-		p.dif[i]<-length(which(mean.sim.dif[i,]>mean.dif[i]))/deriv$nsim
-		p.dif.abs[i]<-2*abs(p.dif[i]-0.5)
-		p.d1.dif[i]<-length(which(mean.d1.sim.dif[i,]>mean.d1.dif[i]))/deriv$nsim
-		p.d1.dif.abs[i]<-2*abs(p.d1.dif[i]-0.5)
-	}
+	
+	## TABLES
+	path.tables<-paste(path,"tables",sep="/")
+	dir.create(path.tables)
+#	source(paste(setup$path.scripts,"utilityfns","deriv.tbl.R",sep="/"))
 
-	## results
-	sink(paste(path,"grid.txt",sep="/"))
-	print(pred.grid)
+	## pred.grid
+	filename=paste(path.tables,"pred.grid",sep="/")
+	sink(filename)
+	cat("",names(pred.grid),"\n")
 	sink()
-	sink(paste(path,"pred.txt",sep="/"))
-	cat(pred.)
-	sink()
-	sink(paste(path,"pred.d1.txt",sep="/"))
-	cat(pred.d1)
-	sink()
-	sink(paste(path,"sim.mean.txt",sep="/"))
-	cat(pred.sim.mean)
-	sink()
-	sink(paste(path,"sim.sd.txt",sep="/"))
-	cat(pred.sim.sd)
-	sink()
-	sink(paste(path,"sim.d1.mean.txt",sep="/"))
-	cat(pred.d1.sim.mean)
-	sink()
-	sink(paste(path,"sim.d1.sd.txt",sep="/"))
-	cat(pred.d1.sim.sd)
-	sink()
-	sink(paste(path,"p.txt",sep="/"))
-	cat(p)
-	sink()
-	sink(paste(path,"p.abs.txt",sep="/"))
-	cat(p.abs)
-	sink()
-	sink(paste(path,"p.dif.txt",sep="/"))
-	cat(p.dif)
-	sink()
-	sink(paste(path,"p.dif.abs.txt",sep="/"))
-	cat(p.dif.abs)
-	sink()
-	sink(paste(path,"p.d1.txt",sep="/"))
-	cat(p.d1)
-	sink()
-	sink(paste(path,"p.d1.abs.txt",sep="/"))
-	cat(p.d1.abs)
-	sink()
-	sink(paste(path,"p.d1.dif.txt",sep="/"))
-	cat(p.d1.dif)
-	sink()
-	sink(paste(path,"p.d1.dif.abs.txt",sep="/"))
-	cat(p.d1.dif.abs)
-	sink()
+	write.table(pred.grid,col.names=FALSE,file=filename,append=TRUE)
 
-	return(NULL)
+	## predicted values
+	filename=paste(path.tables,"pred",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(pred,col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## mean of simulated predictions
+	filename=paste(path.tables,"sim.pred.mean",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(pred.sim.m,col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## sd of simulated predictions
+	filename=paste(path.tables,"sim.pred.sd",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(pred.sim.sd,col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## predicted derivative values
+	filename=paste(path.tables,"pred.d",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(pred.d,col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## mean of simulated derivative predictions
+	filename=paste(path.tables,"sim.pred.d.mean",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(pred.sim.d.m,col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## sd of simulated derivative predictions
+	filename=paste(path.tables,"sim.pred.d.sd",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(pred.sim.d.sd,col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## pred.p
+	filename=paste(path.tables,"pred.p",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(p,col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## pred.p significance stars
+	filename=paste(path.tables,"pred.p.star",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(ifelse(p<.001,"***",ifelse(p<.01,"**",ifelse(p<.05,"*",""))),
+		col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## pred.p sign (-1 for low/1 for high)
+	filename=paste(path.tables,"pred.p.sign",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(p.sign,col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## pred.d.p
+	filename=paste(path.tables,"pred.d.p",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(p.d,col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## pred.d.p significance stars
+	filename=paste(path.tables,"pred.d.p.star",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(ifelse(p.d<.001,"***",ifelse(p.d<.01,"**",ifelse(p.d<.05,"*",""))),
+		col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## pred.d.p sign (-1 for low/1 for high)
+	filename=paste(path.tables,"pred.d.p.sign",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(p.d.sign,col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## pred.pboot
+	filename=paste(path.tables,"pred.pboot",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(pboot,col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## pred.pboot significance stars
+	filename=paste(path.tables,"pred.pboot.star",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(ifelse(pboot<.001,"***",ifelse(pboot<.01,"**",ifelse(pboot<.05,"*",""))),
+		col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## pred.pboot sign (-1 for low/1 for high)
+	filename=paste(path.tables,"pred.pboot.sign",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(pboot.sign,col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## pred.d.pboot
+	filename=paste(path.tables,"pred.d.pboot",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(pboot.d,col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## pred.d.pboot significance stars
+	filename=paste(path.tables,"pred.d.pboot.star",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(ifelse(pboot.d<.001,"***",ifelse(pboot.d<.01,"**",ifelse(pboot.d<.05,"*",""))),
+		col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	## pred.d.p sign (-1 for low/1 for high)
+	filename=paste(path.tables,"pred.d.pboot.sign",sep="/")
+	sink(filename)
+	cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+	sink()
+	write.table(pboot.d.sign,col.names=FALSE,row.names=apply(pred.grid,1,paste,collapse=","),file=filename,append=TRUE)
+
+	if(deriv.do>1){
+
+		## predicted.dif values
+		filename=paste(path.tables,"pred.dif",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(pred.dif,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## mean of simulated predictions.dif
+		filename=paste(path.tables,"sim.pred.dif.mean",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(pred.sim.dif.m,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## sd of simulated predictions.dif
+		filename=paste(path.tables,"sim.pred.dif.sd",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(pred.sim.dif.sd,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## predicted.dif derivative values
+		filename=paste(path.tables,"pred.d.dif",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(pred.d.dif,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## mean of simulated derivative predictions.dif
+		filename=paste(path.tables,"sim.pred.d.dif.mean",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(pred.sim.d.dif.m,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## sd of simulated derivative predictions.dif
+		filename=paste(path.tables,"sim.pred.d.dif.sd",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(pred.sim.d.dif.sd,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## pred.dif.p
+		filename=paste(path.tables,"pred.dif.p",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(dif.p,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## pred.dif.p significance stars
+		filename=paste(path.tables,"pred.dif.p.star",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(ifelse(dif.p<.001,"***",ifelse(dif.p<.01,"**",ifelse(dif.p<.05,"*",""))),
+			col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## pred.dif.p sign (-1 for low/1 for high)
+		filename=paste(path.tables,"pred.dif.p.sign",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(dif.p.sign,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## pred.d.dif.p
+		filename=paste(path.tables,"pred.d.dif.p",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(dif.p.d,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## pred.d.dif.p significance stars
+		filename=paste(path.tables,"pred.d.dif.p.star",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(ifelse(dif.p.d<.001,"***",ifelse(dif.p.d<.01,"**",ifelse(dif.p.d<.05,"*",""))),
+			col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## pred.d.dif.p sign (-1 for low/1 for high)
+		filename=paste(path.tables,"pred.d.dif.p.sign",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(dif.p.d.sign,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## pred.dif.pboot
+		filename=paste(path.tables,"pred.dif.pboot",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(dif.pboot,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## pred.dif.pboot significance stars
+		filename=paste(path.tables,"pred.dif.pboot.star",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(ifelse(dif.pboot<.001,"***",ifelse(dif.pboot<.01,"**",ifelse(dif.pboot<.05,"*",""))),
+			col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## pred.dif.pboot sign (-1 for low/1 for high)
+		filename=paste(path.tables,"pred.dif.pboot.sign",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(dif.pboot.sign,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## pred.d.dif.pboot
+		filename=paste(path.tables,"pred.d.dif.pboot",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(dif.pboot.d,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## pred.d.dif.pboot significance stars
+		filename=paste(path.tables,"pred.d.dif.pboot.star",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(ifelse(dif.pboot.d<.001,"***",ifelse(dif.pboot.d<.01,"**",ifelse(dif.pboot.d<.05,"*",""))),col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+		## pred.d.dif.p sign (-1 for low/1 for high)
+		filename=paste(path.tables,"pred.d.dif.pboot.sign",sep="/")
+		sink(filename)
+		cat(paste(names(pred.grid),collapse=","),setup.$ynames,"\n")
+		sink()
+		write.table(dif.pboot.d.sign,col.names=FALSE,row.names=range.main,file=filename,append=TRUE)
+
+	}	
+	"deriv.est() completed"
+}
+
+
+## EXTRA FUNCTIONS
+
+## function for getting design matrix for prediction
+X.<-function(object,newdata){
+	tt<-terms(object)
+	Terms<-delete.response(tt)
+	m<-model.frame(Terms,newdata)
+	X<-model.matrix(Terms,m)
+	X
+}
+
+avg.low<-function(x,grid=pred.grid,r=range.main){
+	r<-length(r)
+	u<-unique(grid[,dim(grid)[2]])
+	ind<-dim(x)[1]
+	ind.low<-ind/length(u)
+	x<-as.matrix(x)
+	x.low<-sapply(1:ind.low, function(i){
+		if(i==ind.low) i.<-0 else i.<-i
+		colMeans(as.matrix(x[which(1:ind%%ind.low==i.),]))
+	})
+
+	if(!is.matrix(x.low)) x.low<-as.matrix(x.low) else x.low<-t(x.low)
+	Xx<-x.low
+	for(i in 2:length(u)) Xx<-rbind(Xx,x.low)
+	dif<-x-Xx
+	dif.low<-sapply(1:r, function(i){
+		if(i==r) i.<-0 else i.<-i
+		colSums(as.matrix(dif[which(1:ind%%r==i.),]^2))
+	})
+	if(!is.matrix(dif.low)) as.matrix(dif.low) else t(dif.low)
 }

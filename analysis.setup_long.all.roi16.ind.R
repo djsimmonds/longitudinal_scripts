@@ -1,16 +1,16 @@
 ## setup
 setup<-list(
-	path="/home/danisimmonds/Dani/dti_0511/tbss/analysis/long.n45/roi_all1/ind",
+	path="/home/danisimmonds/Dani/dti_0511/tbss/analysis/long.all/roi_all16/ind",
 	path.scripts="/home/danisimmonds/Dropbox/scripts2",
-	ynames="all",
+	ynames=c("par","occ","sm","fron","temp","mt","bg","thal","proj","cal","assoc","assoc.l","cer.c","cer.p"),
 	mixed=TRUE, ## longitudinal?
 	main=TRUE, ## main numeric vector to be included for derivatives analyses?
 	numeric=TRUE, ## are there any numeric vectors to be included for derivatives analyses?
 	numeric.weights=c( ## weights files for numeric variables
-		"/home/danisimmonds/Dani/dti_0511/demographics/beh.out/vgs.mRT_n45.out_weights",
-		"/home/danisimmonds/Dani/dti_0511/demographics/beh.out/vgs.cv_n45.out_weights",
-		"/home/danisimmonds/Dani/dti_0511/demographics/beh.out/anti.percErr_n45.out_weights",
-		"/home/danisimmonds/Dani/dti_0511/demographics/beh.out/anti.cv_n45.out_weights"
+		"/home/danisimmonds/Dani/dti_0511/demographics/beh.out/vgs.mRT_all.out_weights",
+		"/home/danisimmonds/Dani/dti_0511/demographics/beh.out/vgs.cv_all.out_weights",
+		"/home/danisimmonds/Dani/dti_0511/demographics/beh.out/anti.percErr_all.out_weights",
+		"/home/danisimmonds/Dani/dti_0511/demographics/beh.out/anti.cv_all.out_weights"
 	),
 	## fixed effects (var,type,param)
 	fixef=list(

@@ -5,20 +5,6 @@ utilityfns<-function(file,path=paths$study){
 }
 
 
-utilityfns("outlier.R")
-## function for dealing with outliers
-#outlier<-function(Y=get(setup$data)[subset,],X=get(setup$demo)$age[subset,],id=get(setup$demo)$id[subset,],within=setup$out$within,allY=setup$out$allY,sd.thr=setup$out$sd.thr)
-## details:
-	## Y - (required) - matrix of data, dimensions (# of scans, # of y measurements (such as voxels, ROIs, etc...)) 
-	## id - id for within-subject (or group) residual calculation (array of length # of scans) if applicable
-	## X - variables to be used in regression for calculation of residuals (i.e. age) (each an array of length # of scans)
-		## only implemented using linear regression
-	## within - should within subject residuals be calculated (TRUE/FALSE) (default=TRUE)
-	## allY - should outliers across all y variables be calculated and removed before assessing within each y (TRUE/FALSE) (default=TRUE)
-	## sd.thr - standard deviation threshold at which weighting is applied (default=2)
-	## returns list with all outlier calculations
-
-
 utilityfns("model.setup.R")
 #model.setup<-function(F=setup$fixef,W=setup$within,D=setup$deriv$vars)
 ## set up model structure with:

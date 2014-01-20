@@ -1,8 +1,9 @@
 ## setup
 setup<-list(
-	path="/home/danisimmonds/Dani/dti_0511/tbss/analysis/long.n45/roi_all1/ind",
+	path="/home/danisimmonds/Dani/dti_0511/tbss/analysis/long.n45/roi_all16/ind",
 	path.scripts="/home/danisimmonds/Dropbox/scripts2",
-	ynames="all",
+	ynames=c("par","occ","sm","fron","temp","mt","bg","thal","proj","cal","assoc","assoc.l","cer.c","cer.p"),
+
 	mixed=TRUE, ## longitudinal?
 	main=TRUE, ## main numeric vector to be included for derivatives analyses?
 	numeric=TRUE, ## are there any numeric vectors to be included for derivatives analyses?
