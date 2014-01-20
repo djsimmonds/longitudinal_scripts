@@ -1,4 +1,4 @@
-start.m<-81
+start.m<-232
 sink(log.txt)
 
 ## loop through all models
@@ -30,11 +30,11 @@ for(m in start.m:dim(models$X)[1]){
 	}
 
 	## estimate coefficients
-	if(models$coef.do[m]>0){
-		cat(date(),"\t\t\t\tcoefficients analysis...\n")
-		coef.est()
-		cat(date(),"\t\t\t\tcoefficients analysis completed\n")
-	}
+	#if(models$coef.do[m]>0){
+	#	cat(date(),"\t\t\t\tcoefficients analysis...\n")
+	#	coef.est()
+	#	cat(date(),"\t\t\t\tcoefficients analysis completed\n")
+	#}
 
 	# derivatives analysis
 	if(models$deriv.do[m]>0){

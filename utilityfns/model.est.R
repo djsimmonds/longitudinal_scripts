@@ -80,8 +80,11 @@ model.est<-function(
 	}
 
 	## indexing NAs in response variables, combine all NAs into unique vector and exclude from data frame and y variable
-	na<-unique(c(na,which(is.na(rowMeans(y)))))
-	if(length(na)>0){ d<-d[-na,]; y<-as.matrix(y[-na,]) }
+	na<-unique(c(na,which(is.na(rowMeans(as.matrix(y))))))
+	if(length(na)>0){
+		d<-d[-na,]
+		if(is.null(dim(y))) y<-as.matrix(y[-na]) else y<-as.matrix(y[-na,])
+	}
 
 	## add response to data frame
 	if(is.null(d)) d=data.frame(y=y[,1]) else d<-cbind(d,y=y[,1])
