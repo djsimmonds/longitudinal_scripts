@@ -5,12 +5,7 @@ model.est<-function(
 	y=Y,
 	mixed=setup$mixed,
 	r=setup$ranef,
-  ## exclude options:
-    ## diagnostics: runs regression diagnostics on all Y variables, excludes all high influence points (cooks)
-    ## diagnostics.first: runs regression diagnostics on first Y variable, excludes high influence points (cooks)
-    ## none: no exclusions
-    ## (numeric vector): excludes specific scans
-  exclude=setup$exclude ## run
+	analytics.first=TRUE ## if true, only runs analytics on first Y variable; otherwise, runs on all
 ){
 
 ## format formula strings and estimate models (regular)
@@ -100,33 +95,19 @@ model.est<-function(
 
 	## loop through responses and calculate influence parameters, exclude subjects with cook's distance >4/n for any response
 	## NOTE: REST OF SCRIPT IS FLEXIBLE, BUT THIS IS RIGHT NOW ONLY SET UP FOR A SINGLE RANDOM EFFECT, NAMED "id"
-  if(class(exclude)=="integer"){
-    scan.exc <- exclude
-    subj.exc <- NA
-  }else{
-    switch(exclude,
-      none = {
-        scan.exc <- numeric(0)
-        subj.exc <- NA
-      },
-      diagnostics.first = {
-        m.est<-estex(fit,"id")
-        subj.exc.ind<-which(ME.cook(m.est)>4/length(unique(d$id)))
-        subj.exc<-unique(d$id)[unique(subj.exc.ind)]
-        scan.exc<-which(d$id %in% subj.exc)
-      },
-      diagnostics = {
-        subj.exc.ind<-numeric(0)
-        for(i in 1:dim(y)[2]){
-          fit<-refit(fit,y[,i])
-          m.est<-estex(fit,"id")
-          subj.exc.ind<-c(subj.exc.ind,which(ME.cook(m.est)>4/length(unique(d$id))))
-          subj.exc<-unique(d$id)[unique(subj.exc.ind)]
-          scan.exc<-which(d$id %in% subj.exc)
-        }
-      }
-    )
-  }
+	if(analytics.first==TRUE){
+		m.est<-influence(fit,"id")
+		subj.exc.ind<-which(cooks.distance(m.est)>4/length(unique(d$id)))
+	}else{
+		subj.exc.ind<-numeric(0)
+		for(i in 1:dim(y)[2]){
+			fit<-refit(fit,y[,i])
+			m.est<-influence(fit,"id")
+			subj.exc.ind<-c(subj.exc.ind,which(cooks.distance(m.est)>4/length(unique(d$id))))
+		}
+	}
+	subj.exc<-unique(d$id)[unique(subj.exc.ind)]
+	scan.exc<-which(d$id %in% subj.exc)
 	if(length(scan.exc)>0) d<-d[-scan.exc,]
 	fit<-eval(parse(text=m.call))
 

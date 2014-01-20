@@ -1,54 +1,8 @@
-## load setup
-path="/home/danisimmonds/Documents/dti_0913/analysis/L1"
-load(file.path(path, "model.setup"))
-
-## required libraries
-library(lme4) ## for mixed models
-library(influence.ME) ## for regression diagnostics
-library(splines) ## for splines
-library(Rniftilib) ## for working with nifti images
-
-## load utility scripts
-source(paste(setup$path.scripts,"utilityfns.R",sep="/"))
-
-## load data, demographics
-load(paste(setup$path,"X",sep="/"))
-load(paste(setup$path,"Y",sep="/"))
-if(is.null(dim(Y))) Y <- as.matrix(Y)
-
-## models
-models<-model.setup(setup)
-sink(paste(setup$path,"models.txt",sep="/"))
-cat(date(),"\tMODEL SETUP\n\n")
-print(models)
-sink()
-
-## logfile
-log.txt=paste(setup$path,"log.txt",sep="/")
+start.m<-232
 sink(log.txt)
-cat(date(),"\tLONGITUDINAL ANALYSIS\n\n")
-
-## set up structures for estimation
-models$model<-list()
-cat(date(),"\t\t\t\testimating null model\n")
-models$model[[1]]<-model.est() ## null model
-cat(date(),"\t\t\t\testimation completed\n")
-
-## model comparisons
-n.comp<-sum(sapply(1:length(models$con), function(i) length(models$con[[i]])))
-labels<-character(n.comp)
-llr<-matrix(NA,n.comp,dim(Y)[2])
-llr.df<-numeric(n.comp)
-llr.p<-matrix(NA,n.comp,dim(Y)[2])
-ind.comp<-1
-
-n<-length(unique(X$id)) ## number of subjects for cook's distance calculations
-
-## executes custom code from analysis setup
-if(length(setup$custom.code)>0) for(i in 1:length(setup$custom.code)) eval(parse(text=setup$custom.code[i]))
 
 ## loop through all models
-for(m in 2:dim(models$X)[1]){
+for(m in start.m:dim(models$X)[1]){
 
 	## print progress through m
 	cat(date(),"\t\tm =",m,"/",dim(models$X)[1],", vars =",models$X.var[m,],"\n")

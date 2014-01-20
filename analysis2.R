@@ -1,6 +1,5 @@
-## load setup
-path="/home/danisimmonds/Documents/dti_0913/analysis/L1"
-load(file.path(path, "model.setup"))
+# load settings
+load(file.path(getwd(), "model.setup"))
 
 ## required libraries
 library(lme4) ## for mixed models
@@ -35,7 +34,8 @@ models$model[[1]]<-model.est() ## null model
 cat(date(),"\t\t\t\testimation completed\n")
 
 ## model comparisons
-n.comp<-sum(sapply(1:length(models$con), function(i) length(models$con[[i]])))
+#n.comp<-sum(sapply(1:length(models$con), function(i) length(models$con[[i]])))
+n.comp<-dim(models$X)[1] ## CHANGE
 labels<-character(n.comp)
 llr<-matrix(NA,n.comp,dim(Y)[2])
 llr.df<-numeric(n.comp)
@@ -63,23 +63,17 @@ for(m in 2:dim(models$X)[1]){
 	cat(date(),"\t\t\t\testimation completed\n")
 
 	## loop through contrasts
-	for(c in 1:length(models$con[[m]])){
-		## print progress through c
-		cat(date(),"\t\t\tc =",c,"/",length(models$con[[m]]),"\n")
-		## calculate LL test
-		ll.list<-ll.test()
-		labels[ind.comp]<-paste(models$model[[m]]$formula,models$model[[models$con[[m]][c]]]$formula,sep="_vs_")
-		llr[ind.comp,]<-ll.list[,1]
-		llr.df[ind.comp]<-ll.list[1,2]
-		llr.p[ind.comp,]<-ll.list[,3]
-		ind.comp<-ind.comp+1
-	}
-
-	## estimate coefficients
-	#if(models$coef.do[m]>0){
-	#	cat(date(),"\t\t\t\tcoefficients analysis...\n")
-	#	coef.est()
-	#	cat(date(),"\t\t\t\tcoefficients analysis completed\n")
+	#for(c in 1:length(models$con[[m]])){
+	#	## print progress through c
+	#	cat(date(),"\t\t\tc =",c,"/",length(models$con[[m]]),"\n")
+	#	## calculate LL test
+	temp_model<-model.est2()
+	ll.list<-ll.test(m0.=temp_model)
+	labels[ind.comp]<-paste(models$model[[m]]$formula,temp_model$formula,sep="_vs_")
+	llr[ind.comp,]<-ll.list[,1]
+	llr.df[ind.comp]<-ll.list[1,2]
+	llr.p[ind.comp,]<-ll.list[,3]
+	ind.comp<-ind.comp+1
 	#}
 
 	# derivatives analysis
